@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Routes</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    :root{--brand:#185a9d;--accent:#43cea2}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Poppins',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f7fb;color:#1d2b3a}
+    header{
+      background:var(--brand);color:#fff;padding:14px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between
+    }
+    header .links{display:flex;gap:8px}
+    a.btn{
+      text-decoration:none;background:#ffffff20;border:1px solid #ffffff55;color:#fff;
+      padding:8px 12px;border-radius:10px;transition:.2s
+    }
+    a.btn:hover{background:#ffffff35}
+    #map{height:58vh}
+    .wrap{display:grid;grid-template-columns:1.3fr .9fr;gap:16px;padding:16px}
+    @media(max-width:960px){.wrap{grid-template-columns:1fr}}
+    .panel{
+      background:#fff;border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.08);animation:fade .35s ease
+    }
+    .tag{display:inline-block;padding:4px 8px;border-radius:20px;font-size:12px;font-weight:700}
+    .ok{background:#e6f7ef;color:#0b7a41;border:1px solid #b8ebd0}
+    .warn{background:#fff5e6;color:#b46a00;border:1px solid #ffe0ad}
+    .bad{background:#fde8e8;color:#a11f1f;border:1px solid #f8bcbc}
+    .card{border:1px solid #eef2f7;border-radius:12px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;gap:10px;align-items:center;transition:transform .15s}
+    .card:hover{transform:translateY(-2px)}
+    .col{display:flex;flex-direction:column}
+    .title{font-weight:700}
+    .muted{opacity:.75}
+    .profiles .p{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #eef2f7;border-radius:12px;margin:10px 0;cursor:pointer;transition:.2s}
+    .profiles .p:hover{background:#f8fbff}
+    .avatar{width:42px;height:42px;border-radius:50%;object-fit:cover}
+    .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+    .legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+    .swatch{width:14px;height:14px;border-radius:3px;display:inline-block}
+    @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    
+  /* Points System at bottom-right */
+  #pointsBox {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: var(--accent);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 30px;
+    font-weight: bold;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    font-size: 16px;
+    z-index: 9999;
+  }
+
+  #pointNotify {
+    position: fixed;
+    bottom: 70px; /* above points box */
+    right: 16px;
+    background: #2ecc71;
+    color: white;
+    padding: 14px 20px;
+    border-radius: 12px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    font-weight: bold;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s ease;
+    z-index: 9999;
+  }
+
+  /* Animated points increment */
+  .pointsIncrement {
+    position: absolute;
+    color: #fff;
+    font-weight: bold;
+    animation: popUp 1s ease forwards;
+    pointer-events: none;
+    font-size: 16px;
+  }
+
+  @keyframes popUp {
+    0% {opacity:1; transform: translateY(0) scale(1);}
+    50% {opacity:1; transform: translateY(-20px) scale(1.3);}
+    100% {opacity:0; transform: translateY(-40px) scale(1);}
+  }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div style="font-weight:800;letter-spacing:.3px">🚦 Route Options</div>
+      <div id="summary" class="muted" style="font-size:12px;margin-top:2px"></div>
+    </div>
+    <div class="links">
+      <a href="plan.html" class="btn">← Back to Plan</a>
+      <a href="dashboard.html" class="btn">Go to Dashboard</a>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <div class="wrap">
+    <div class="panel">
+      <div class="legend">
+        <span><i class="swatch" style="background:#1e88e5"></i> Fastest</span>
+        <span><i class="swatch" style="background:#2ecc71"></i> Eco (Shortest)</span>
+        <span><i class="swatch" style="background:#95a5a6"></i> Alternative</span>
+        <span><i class="swatch" style="background:#e67e22"></i> Aarav (Carpool)</span>
+        <span><i class="swatch" style="background:#e74c3c"></i> Sarah (Carpool)</span>
+        <span><i class="swatch" style="background:#8e44ad"></i> Rohan (Carpool)</span>
+      </div>
+      <div id="routeCards"></div>
+    </div>
+
+    <div class="panel profiles">
+      <div class="title">Carpooling Options</div>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">Tap to highlight route</div>
+
+      <div class="p" data-name="Aarav">
+        <img class="avatar" src="https://randomuser.me/api/portraits/men/32.jpg" alt="Aarav">
+        <div class="col">
+          <strong>Aarav</strong><span class="muted">2 seats • CO₂ saved est. 25kg</span>
+        </div>
+      </div>
+      <div class="p" data-name="Sarah">
+        <img class="avatar" src="https://randomuser.me/api/portraits/women/44.jpg" alt="Sarah">
+        <div class="col">
+          <strong>Sarah</strong><span class="muted">3 seats • CO₂ saved est. 40kg</span>
+        </div>
+      </div>
+      <div class="p" data-name="Rohan">
+        <img class="avatar" src="https://randomuser.me/api/portraits/men/18.jpg" alt="Rohan">
+        <div class="col">
+          <strong>Rohan</strong><span class="muted">1 seat • CO₂ saved est. 15kg</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Points System -->
+  <div id="pointsBox">🌍 Points: <span id="points">0</span></div>
+  <div id="pointNotify"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // ====== Utils ======
+    const qs = new URLSearchParams(location.search);
+    const startText = qs.get('start') || '';
+    const endText   = qs.get('end') || '';
+    const maxBudget = Number(qs.get('budget') || 0);
+    const maxTime   = Number(qs.get('time') || 0);
+
+    const map = L.map('map', {zoomControl:true}).setView([22.9734,78.6569], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+
+    document.getElementById('summary').textContent =
+      `From "${decodeURIComponent(startText)}" to "${decodeURIComponent(endText)}" • Budget ₹${maxBudget} • Time ${maxTime} min`;
+
+    const latlonRe = /^\s*(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)\s*$/;
+    async function geocode(q){
+      const m = q.match(latlonRe);
+      if(m) return [parseFloat(m[1]), parseFloat(m[3])];
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      const data = await res.json();
+      if(!data.length) throw new Error('Place not found: ' + q);
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    }
+
+    function toLngLatStr([lat,lon]){ return `${lon},${lat}`; }
+    function km(n){ return (n/1000).toFixed(1); }
+    function min(n){ return Math.round(n/60); }
+    function costEstimate(distanceMeters, mode='car'){ const kmVal = distanceMeters/1000; return Math.round(kmVal * (mode==='car'?6:2)); }
+    function badge(val,limit){ if(!limit || isNaN(limit)) return ''; if(val<=limit) return `<span class="tag ok">Within</span>`; if(val<=limit*1.25) return `<span class="tag warn">Slightly over</span>`; return `<span class="tag bad">Exceeds</span>`; }
+
+    const layers = {};
+    function makeHighlight(name){
+      Object.keys(layers).forEach(k => layers[k].setStyle({weight:5,opacity:0.7}));
+      const l = layers[name];
+      if(l){ l.setStyle({weight:8,opacity:1}); map.fitBounds(l.getBounds(), {padding:[30,30]}); l.openPopup?.(); }
+    }
+    function offset([lat,lon],[dLat,dLon]){ return [lat + dLat, lon + dLon]; }
+    async function getOsrmRoute(coordsArr, color, name, dashed=false){
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsArr.join(';')}?alternatives=false&overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('OSRM error');
+      const data = await res.json();
+      if(!(data.routes && data.routes.length)) throw new Error('No route');
+      const r = data.routes[0];
+      const latlngs = r.geometry.coordinates.map(([lng,lat])=>[lat,lng]);
+      const line = L.polyline(latlngs, {color, weight:5, opacity:.7, ...(dashed?{dashArray:'6,6'}:{})})
+        .addTo(map)
+        .bindPopup(`${name}: ${km(r.distance)} km, ${min(r.duration)} min`);
+      layers[name] = line;
+      return r;
+    }
+    async function getAlternatives(startLL, endLL){
+      const url = `https://router.project-osrm.org/route/v1/driving/${toLngLatStr(startLL)};${toLngLatStr(endLL)}?alternatives=true&overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('OSRM alt error');
+      const data = await res.json();
+      if(!(data.routes && data.routes.length)) throw new Error('No alternatives');
+      return data.routes;
+    }
+
+    (async function init(){
+      try{
+        const startLL = await geocode(decodeURIComponent(startText));
+        const endLL   = await geocode(decodeURIComponent(endText));
+
+        const startM = L.marker(startLL).addTo(map).bindPopup('Start');
+        const endM   = L.marker(endLL).addTo(map).bindPopup('Destination');
+        map.fitBounds(L.latLngBounds([startLL,endLL]).pad(0.25));
+
+        const alts = await getAlternatives(startLL, endLL);
+        const sortedByTime = [...alts].sort((a,b)=>a.duration-b.duration);
+        const sortedByDist = [...alts].sort((a,b)=>a.distance-b.distance);
+
+        const fastest = sortedByTime[0];
+        const shortest = sortedByDist[0];
+        const another = alts.find(r => r!==fastest && r!==shortest) || alts[1] || null;
+
+        function drawRoute(route, color, name){ const latlngs = route.geometry.coordinates.map(([lng,lat])=>[lat,lng]); layers[name] = L.polyline(latlngs, {color, weight:5, opacity:.7}).addTo(map).bindPopup(`${name}: ${km(route.distance)} km, ${min(route.duration)} min`); }
+        drawRoute(fastest,  '#1e88e5', 'Fastest');
+        drawRoute(shortest, '#2ecc71', 'Eco (Shortest)');
+        if(another) { layers['Alternative'] = L.polyline(another.geometry.coordinates.map(([lng,lat])=>[lat,lng]), {color:'#95a5a6',weight:5,opacity:.7,dashArray:'6,6'}).addTo(map).bindPopup(`Alternative: ${km(another.distance)} km, ${min(another.duration)} min`); }
+
+        const cards = [];
+        const fastestCost  = costEstimate(fastest.distance, 'car');
+        const shortestCost = costEstimate(shortest.distance, 'public');
+        const altCost      = another ? costEstimate(another.distance, 'car') : null;
+
+        cards.push(`
+          <div class="card" onclick="makeHighlight('Fastest')">
+            <div class="col"><div class="title">Fastest</div><div class="muted">${km(fastest.distance)} km • ${min(fastest.duration)} min • est. ₹${fastestCost} (car)</div></div>
+            <div class="col" style="align-items:flex-end">${badge(fastestCost,maxBudget)} ${badge(min(fastest.duration),maxTime)}</div>
+          </div>`);
+
+        cards.push(`
+          <div class="card" onclick="makeHighlight('Eco (Shortest)')">
+            <div class="col"><div class="title">Eco (Shortest)</div><div class="muted">${km(shortest.distance)} km • ${min(shortest.duration)} min • est. ₹${shortestCost} (public)</div></div>
+            <div class="col" style="align-items:flex-end">${badge(shortestCost,maxBudget)} ${badge(min(shortest.duration),maxTime)}</div>
+          </div>`);
+
+        if(another){
+          cards.push(`
+            <div class="card" onclick="makeHighlight('Alternative')">
+              <div class="col"><div class="title">Alternative</div><div class="muted">${km(another.distance)} km • ${min(another.duration)} min • est. ₹${altCost}</div></div>
+              <div class="col" style="align-items:flex-end">${badge(altCost, maxBudget)} ${badge(min(another.duration),maxTime)}</div>
+            </div>`);
+        }
+
+        const carpoolers = [
+          {name:'Aarav', color:'#e67e22', offset:[ 0.010,  0.000]},
+          {name:'Sarah', color:'#e74c3c', offset:[-0.008,  0.012]},
+          {name:'Rohan', color:'#8e44ad', offset:[ 0.006, -0.010]},
+        ];
+
+        for(const c of carpoolers){
+          const pickup = offset(startLL, c.offset);
+          const coordsArr = [toLngLatStr(startLL), toLngLatStr(pickup), toLngLatStr(endLL)];
+          const r = await getOsrmRoute(coordsArr, c.color, c.name, true);
+          const cCost = costEstimate(r.distance,'car');
+          cards.push(`
+            <div class="card" onclick="makeHighlight('${c.name}')">
+              <div class="col"><div class="title">${c.name} (Carpool)</div><div class="muted">${km(r.distance)} km • ${min(r.duration)} min • est. ₹${cCost} split</div></div>
+              <div class="col" style="align-items:flex-end">${badge(cCost, maxBudget)} ${badge(min(r.duration), maxTime)}</div>
+            </div>`);
+        }
+
+        document.getElementById('routeCards').innerHTML = cards.join('');
+
+        document.querySelectorAll('.profiles .p').forEach(el=>{ el.addEventListener('click', ()=> makeHighlight(el.dataset.name)); });
+
+      }catch(err){ console.error(err); alert('Routing failed. Try different places or check your connection.'); }
+    })();
+
+    // ====== GAMIFICATION SYSTEM ======
+    let points = parseInt(localStorage.getItem("ecoPoints")) || 0;
+    const pointsDisplay = document.getElementById("points");
+    const notifyBox = document.getElementById("pointNotify");
+    pointsDisplay.textContent = points;
+
+  function showNotification(message, bg='#2ecc71'){
+    const notifyBox = document.getElementById('pointNotify');
+    notifyBox.textContent = message;
+    notifyBox.style.background = bg;
+    notifyBox.style.opacity = 1;
+    notifyBox.style.transform = 'translateY(0)';
+    setTimeout(()=>{
+      notifyBox.style.opacity = 0;
+      notifyBox.style.transform = 'translateY(20px)';
+    }, 2200);
+  }
+
+    function animatePoints(add){
+      const incrementEl = document.createElement('span');
+      incrementEl.className = 'pointsIncrement';
+      incrementEl.textContent = `+${add}`;
+      pointsDisplay.appendChild(incrementEl);
+      setTimeout(()=>incrementEl.remove(),1000);
+    }
+
+    function awardPoints(type){
+      let add = 0, msg = '', bg='#2ecc71';
+      switch(type){
+        case 'eco': add = 20; msg = `♻️ Eco-friendly choice! +${add} points`; bg='#43cea2'; break;
+        case 'carpool': add = 15; msg = `🚗 Carpool used! +${add} points`; bg='#f39c12'; break;
+        case 'fast': add = 0; msg = `⚡ Fastest route, no points`; bg='#1e88e5'; break;
+      }
+      if(add>0) animatePoints(add);
+      points += add;
+      localStorage.setItem("ecoPoints", points);
+      pointsDisplay.textContent = points;
+      if(add>0 || type==='fast') showNotification(msg, bg);
+    }
+
+    document.querySelectorAll('#routeCards .card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const title = card.querySelector('.title')?.textContent || '';
+        if(title.includes('Eco')) awardPoints('eco');
+        else if(title.includes('Carpool')) awardPoints('carpool');
+        else awardPoints('fast');
+      });
+    });
+
+    document.querySelectorAll('.profiles .p').forEach(profile=>{
+      profile.addEventListener('click', ()=>{ awardPoints('carpool'); });
+    });
+  </script>
+</body>
+</html>
